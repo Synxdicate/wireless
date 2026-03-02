@@ -105,7 +105,10 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+// 🟢 Import Firebase เพื่อเชื่อมต่อฐานข้อมูล
+import { ref as dbRef, get, update } from 'firebase/database' 
+import { db } from '~/utils/firebase'
 
 useHead({ title: 'Settings | Smart Plant Box' })
 
@@ -118,6 +121,8 @@ const time2 = ref('17:00')
 const isSaving = ref(false)
 const showToast = ref(false)
 let toastTimeout = null
+// ตัวแปรสำหรับเช็คว่ากำลังโหลดข้อมูลครั้งแรกอยู่ จะได้ไม่เผลอเซฟทับ
+let isInitialLoad = true 
 
 const photoOptions = [
   { label: 'Manual Only', value: 'manual', desc: 'Take photos manually via Dashboard' },
@@ -126,12 +131,47 @@ const photoOptions = [
   { label: 'Morning, Noon & Evening', value: 'morning_noon_evening', desc: '3 photos per day (07:00 AM & 12:00 PM & 5:00 PM)' }
 ]
 
+// 🟢 ดึงข้อมูลจาก Firebase ตอนเปิดหน้าเว็บ
+onMounted(async () => {
+  try {
+    const settingsNode = dbRef(db, 'test/settings')
+    const snapshot = await get(settingsNode)
+    
+    if (snapshot.exists()) {
+      const data = snapshot.val()
+      if (data.wateringSchedule) wateringSchedule.value = data.wateringSchedule
+      if (data.photoFrequency) photoFrequency.value = data.photoFrequency
+      if (data.time1) time1.value = data.time1
+      if (data.time2) time2.value = data.time2
+    }
+  } catch (error) {
+    console.error('Error loading settings:', error)
+  } finally {
+    // โหลดเสร็จแล้ว อนุญาตให้ระบบ Auto-save ทำงานได้
+    setTimeout(() => { isInitialLoad = false }, 500)
+  }
+})
+
+// 🟢 ฟังก์ชันส่งข้อมูลไปเซฟที่ Firebase
 const autoSave = async () => {
+  if (isInitialLoad) return // ข้ามการเซฟถ้าเพิ่งเปิดหน้าเว็บ
+  
   isSaving.value = true
   showToast.value = true
   clearTimeout(toastTimeout)
   
-  await new Promise(resolve => setTimeout(resolve, 800)) 
+  try {
+    const settingsNode = dbRef(db, 'test/settings')
+    // อัปเดตข้อมูลขึ้น Database ที่โฟลเดอร์ test/settings
+    await update(settingsNode, {
+      wateringSchedule: wateringSchedule.value,
+      photoFrequency: photoFrequency.value,
+      time1: time1.value,
+      time2: time2.value
+    })
+  } catch (error) {
+    console.error('Error saving settings:', error)
+  }
   
   isSaving.value = false
   toastTimeout = setTimeout(() => { showToast.value = false }, 2000)
