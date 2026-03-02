@@ -122,8 +122,8 @@ let toastTimeout = null
 const photoOptions = [
   { label: 'Manual Only', value: 'manual', desc: 'Take photos manually via Dashboard' },
   { label: 'Morning', value: 'morning', desc: '1 photo per day (07:00 AM)' }, 
-  { label: 'Morning & Evening', value: 'morning_evening', desc: '2 photos per day' }, 
-  { label: 'Morning, Noon & Evening', value: 'morning_noon_evening', desc: '3 photos per day' }
+  { label: 'Morning & Evening', value: 'morning_evening', desc: '2 photos per day (07:00 AM & 12:00 PM)' }, 
+  { label: 'Morning, Noon & Evening', value: 'morning_noon_evening', desc: '3 photos per day (07:00 AM & 12:00 PM & 5:00 PM)' }
 ]
 
 const autoSave = async () => {

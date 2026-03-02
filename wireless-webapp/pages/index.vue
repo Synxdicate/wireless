@@ -28,7 +28,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             <span class="text-[10px] font-extrabold text-gray-700 dark:text-gray-200 tracking-wider">LATEST</span>
-            <span class="text-[9px] font-medium text-gray-400 dark:text-gray-500 ml-1 border-l pl-2 border-gray-200 dark:border-gray-600">{{ lastUpdatedTime }}</span>
+            <span class="text-[9px] font-medium text-gray-400 dark:text-gray-500 ml-1 border-l pl-2 border-gray-200 dark:border-gray-600">{{ lastPhotoTime }}</span>
           </div>
 
           <button @click="isZoomed = true" class="absolute bottom-4 right-4 bg-white/80 backdrop-blur p-2 rounded-xl text-gray-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white active:scale-95 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800">
@@ -135,7 +135,9 @@ const isZoomed = ref(false)
 const plantName = ref('Pepper Plant (Box #1)')
 const isEditingName = ref(false)
 const nameInput = ref(null)
-const lastUpdatedTime = ref('Just now')
+
+// 🟢 สร้างตัวแปรใหม่สำหรับเก็บเวลาของรูปภาพโดยเฉพาะ (ตั้งค่าเริ่มต้นเป็น --:--)
+const lastPhotoTime = ref('--:--')
 
 const startEditingName = async () => {
   isEditingName.value = true
@@ -206,7 +208,6 @@ onMounted(() => {
         sensors.value[2].percent = (data.temp / 50) * 100 
       }
 
-      // ⚠️ อัปเดตตรงนี้ให้ดึงจาก key 'soil_moisture' ตามรูปใน Firebase แล้วครับ
       if (data.soil_moisture !== undefined) {
         sensors.value[0].value = data.soil_moisture
         sensors.value[0].percent = data.soil_moisture
@@ -216,8 +217,13 @@ onMounted(() => {
         plantName.value = data.plantName
       }
       
-      const now = new Date()
-      lastUpdatedTime.value = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      // 🟢 ดึงเวลาถ่ายรูปจาก Firebase (ถ้ามี)
+      // สมมติว่าในอนาคตคุณสร้างตัวแปร photo_time ใน Firebase ไว้เก็บเวลาที่ถ่ายรูป
+      if (data.photo_time) {
+        lastPhotoTime.value = data.photo_time
+      }
+      
+      // ❌ เอาโค้ดที่เคยอัปเดตเวลาตามเซ็นเซอร์ตรงนี้ออกไปแล้วครับ
     }
   })
 })
@@ -228,6 +234,11 @@ const triggerWater = () => {
 
 const triggerPhoto = () => {
   console.log("Photo capture triggered!")
+  // 🟢 อัปเดตเวลาบนหน้าปัดทันที เมื่อเรากดถ่ายรูปแมนนวล
+  const now = new Date()
+  lastPhotoTime.value = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  
+  // (จุดนี้คุณสามารถเขียนโค้ดเพื่อส่งคำสั่งไปให้กล้องถ่ายรูปได้เลย)
 }
 </script>
 
