@@ -21,7 +21,22 @@
       
       <div class="lg:col-span-1 space-y-6">
         <div class="bg-gray-100 rounded-3xl aspect-square md:aspect-video lg:aspect-square flex items-center justify-center overflow-hidden shadow-sm relative group border border-gray-100 dark:bg-gray-800 dark:border-gray-700 transition-colors">
-          <img src="https://picsum.photos/seed/plantbox/800/800" alt="Plant" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 hover:opacity-100" />
+          
+          <div v-if="loadingPhoto" class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+            <div class="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+          </div>
+
+          <div v-else-if="!latestPhotoUrl" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-600">
+            <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            <span class="text-xs font-medium">No photo yet</span>
+          </div>
+
+          <img 
+            v-else
+            :src="latestPhotoUrl" 
+            alt="Plant" 
+            class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 hover:opacity-100" 
+          />
           
           <div class="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1.5 dark:bg-gray-900/90 border border-gray-100 dark:border-gray-700">
             <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,7 +46,7 @@
             <span class="text-[9px] font-medium text-gray-400 dark:text-gray-500 ml-1 border-l pl-2 border-gray-200 dark:border-gray-600">{{ lastPhotoTime }}</span>
           </div>
 
-          <button @click="isZoomed = true" class="absolute bottom-4 right-4 bg-white/80 backdrop-blur p-2 rounded-xl text-gray-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white active:scale-95 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800">
+          <button @click="isZoomed = true" :disabled="!latestPhotoUrl" class="absolute bottom-4 right-4 bg-white/80 backdrop-blur p-2 rounded-xl text-gray-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white active:scale-95 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800 disabled:hidden">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
           </button>
         </div>
@@ -99,12 +114,13 @@
             Water Now
           </button>
 
-          <button @click="triggerPhoto" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-lg flex items-center justify-center gap-3 dark:bg-emerald-600 dark:hover:bg-emerald-500">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button @click="triggerPhoto" :disabled="takingPhoto" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-lg flex items-center justify-center gap-3 dark:bg-emerald-600 dark:hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed">
+            <svg v-if="!takingPhoto" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
             </svg>
-            Take Photo
+            <span v-if="takingPhoto" class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            {{ takingPhoto ? 'Taking...' : 'Take Photo' }}
           </button>
         </div>
 
@@ -114,7 +130,7 @@
     <Transition name="fade">
       <div v-if="isZoomed" @click="isZoomed = false" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 md:p-12 cursor-zoom-out">
         <div class="relative max-w-5xl w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-gray-800">
-          <img src="https://picsum.photos/seed/plantbox/1200/800" class="w-full h-full object-contain" />
+          <img :src="latestPhotoUrl" class="w-full h-full object-contain" />
           <button class="absolute top-6 right-6 bg-white/20 hover:bg-white/40 p-2 rounded-full text-white backdrop-blur transition-colors">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
@@ -125,7 +141,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { ref as dbRef, onValue, set } from 'firebase/database' 
 import { db } from '~/utils/firebase'
 
@@ -136,8 +152,34 @@ const plantName = ref('Pepper Plant (Box #1)')
 const isEditingName = ref(false)
 const nameInput = ref(null)
 
-// 🟢 สร้างตัวแปรใหม่สำหรับเก็บเวลาของรูปภาพโดยเฉพาะ (ตั้งค่าเริ่มต้นเป็น --:--)
+const SUPABASE_URL = 'https://jojvabjckmruvmrhrrzd.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvanZhYmpja21ydXZtcmhycnpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDM1MjQsImV4cCI6MjA4ODAxOTUyNH0.8XHYvfy3qfzgcf95gmeCTxLEcaQZcmzMI_4qMiRD87M'
+
+const latestPhotoUrl = ref('')
 const lastPhotoTime = ref('--:--')
+const loadingPhoto = ref(true)
+const takingPhoto = ref(false)
+let pollInterval = null
+
+const fetchLatestPhoto = async () => {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/image?select=image_url,created_at&order=created_at.desc&limit=1`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    )
+    const data = await res.json()
+    console.log('Latest photo from Supabase:', data)
+    if (data && data.length > 0) {
+      latestPhotoUrl.value = data[0].image_url
+      const d = new Date(data[0].created_at)
+      lastPhotoTime.value = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    }
+  } catch (e) {
+    console.error('Failed to fetch photo:', e)
+  } finally {
+    loadingPhoto.value = false
+  }
+}
 
 const startEditingName = async () => {
   isEditingName.value = true
@@ -148,9 +190,7 @@ const startEditingName = async () => {
 const savePlantName = () => {
   isEditingName.value = false
   const nameNode = dbRef(db, 'test/plantName')
-  set(nameNode, plantName.value).catch(err => {
-    console.error("Save name failed:", err)
-  })
+  set(nameNode, plantName.value).catch(err => console.error("Save name failed:", err))
 }
 
 const sensors = ref([
@@ -172,7 +212,6 @@ const plantStatus = computed(() => {
       iconPath: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
     }
   }
-
   if (temp > 35 || temp < 15 || humid < 30) {
     return {
       status: 'Needs Attention',
@@ -182,7 +221,6 @@ const plantStatus = computed(() => {
       iconPath: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
     }
   }
-
   return {
     status: 'Healthy',
     colorClass: 'text-emerald-500 dark:text-emerald-400',
@@ -193,52 +231,40 @@ const plantStatus = computed(() => {
 })
 
 onMounted(() => {
-  const testNode = dbRef(db, 'test')
+  fetchLatestPhoto()
+  // Auto-refresh photo every 60 seconds
+  pollInterval = setInterval(fetchLatestPhoto, 60000)
 
+  const testNode = dbRef(db, 'test')
   onValue(testNode, (snapshot) => {
     const data = snapshot.val()
     if (data) {
-      if (data.hum !== undefined) {
-        sensors.value[1].value = data.hum
-        sensors.value[1].percent = data.hum
-      }
-      
-      if (data.temp !== undefined) {
-        sensors.value[2].value = data.temp
-        sensors.value[2].percent = (data.temp / 50) * 100 
-      }
-
-      if (data.soil_moisture !== undefined) {
-        sensors.value[0].value = data.soil_moisture
-        sensors.value[0].percent = data.soil_moisture
-      }
-
-      if (data.plantName) {
-        plantName.value = data.plantName
-      }
-      
-      // 🟢 ดึงเวลาถ่ายรูปจาก Firebase (ถ้ามี)
-      // สมมติว่าในอนาคตคุณสร้างตัวแปร photo_time ใน Firebase ไว้เก็บเวลาที่ถ่ายรูป
-      if (data.photo_time) {
-        lastPhotoTime.value = data.photo_time
-      }
-      
-      // ❌ เอาโค้ดที่เคยอัปเดตเวลาตามเซ็นเซอร์ตรงนี้ออกไปแล้วครับ
+      if (data.hum !== undefined) { sensors.value[1].value = data.hum; sensors.value[1].percent = data.hum }
+      if (data.temp !== undefined) { sensors.value[2].value = data.temp; sensors.value[2].percent = (data.temp / 50) * 100 }
+      if (data.soil_moisture !== undefined) { sensors.value[0].value = data.soil_moisture; sensors.value[0].percent = data.soil_moisture }
+      if (data.plantName) plantName.value = data.plantName
     }
   })
+})
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
 })
 
 const triggerWater = () => {
   console.log("Watering triggered!")
 }
 
-const triggerPhoto = () => {
-  console.log("Photo capture triggered!")
-  // 🟢 อัปเดตเวลาบนหน้าปัดทันที เมื่อเรากดถ่ายรูปแมนนวล
-  const now = new Date()
-  lastPhotoTime.value = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-  
-  // (จุดนี้คุณสามารถเขียนโค้ดเพื่อส่งคำสั่งไปให้กล้องถ่ายรูปได้เลย)
+const triggerPhoto = async () => {
+  takingPhoto.value = true
+  const before = latestPhotoUrl.value
+  // Poll every 2s for up to 30s waiting for a new photo from ESP32
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    await fetchLatestPhoto()
+    if (latestPhotoUrl.value !== before) break
+  }
+  takingPhoto.value = false
 }
 </script>
 

@@ -28,7 +28,14 @@
       </div>
     </div>
 
-    <div v-if="currentTimeline.length > 0" class="relative ml-4 md:ml-6 border-l-[2px] border-gray-200 space-y-8 pb-10 dark:border-gray-700 transition-colors">
+    <!-- Loading -->
+    <div v-if="loading" class="flex flex-col items-center justify-center py-16">
+      <div class="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
+      <p class="text-sm text-gray-400 dark:text-gray-500">Loading photos...</p>
+    </div>
+
+    <!-- Timeline items -->
+    <div v-else-if="currentTimeline.length > 0" class="relative ml-4 md:ml-6 border-l-[2px] border-gray-200 space-y-8 pb-10 dark:border-gray-700 transition-colors">
       
       <div v-for="(item, index) in currentTimeline" :key="item.id" class="relative pl-6 md:pl-8">
         
@@ -43,30 +50,28 @@
           </div>
           
           <div class="rounded-xl overflow-hidden bg-gray-100 aspect-video md:aspect-[21/9] relative group dark:bg-gray-900 mb-4">
-            <img :src="item.image" :alt="item.timeDisplay" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100">
+            <img :src="item.image_url" :alt="item.timeDisplay" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100">
           </div>
 
           <div class="grid grid-cols-3 gap-2">
             <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-0.5 sm:gap-2 bg-gray-50 border border-gray-100 p-2 md:px-3 md:py-2 rounded-xl dark:bg-gray-900 dark:border-gray-700">
               <span class="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider dark:text-gray-500">Soil</span>
-              <span class="text-xs md:text-sm font-extrabold text-emerald-500 dark:text-emerald-400">{{ item.sensors.soil }}%</span>
+              <span class="text-xs md:text-sm font-extrabold text-emerald-500 dark:text-emerald-400">{{ item.soil != null ? item.soil + '%' : '—' }}</span>
             </div>
-            
             <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-0.5 sm:gap-2 bg-gray-50 border border-gray-100 p-2 md:px-3 md:py-2 rounded-xl dark:bg-gray-900 dark:border-gray-700">
               <span class="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider dark:text-gray-500">Humid</span>
-              <span class="text-xs md:text-sm font-extrabold text-blue-500 dark:text-blue-400">{{ item.sensors.humid }}%</span>
+              <span class="text-xs md:text-sm font-extrabold text-blue-500 dark:text-blue-400">{{ item.humid != null ? item.humid + '%' : '—' }}</span>
             </div>
-            
             <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-0.5 sm:gap-2 bg-gray-50 border border-gray-100 p-2 md:px-3 md:py-2 rounded-xl dark:bg-gray-900 dark:border-gray-700">
               <span class="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider dark:text-gray-500">Temp</span>
-              <span class="text-xs md:text-sm font-extrabold text-amber-500 dark:text-amber-400">{{ item.sensors.temp }}°C</span>
+              <span class="text-xs md:text-sm font-extrabold text-amber-500 dark:text-amber-400">{{ item.temp != null ? item.temp + '°C' : '—' }}</span>
             </div>
           </div>
-
         </div>
       </div>
     </div>
 
+    <!-- Empty state -->
     <div v-else class="flex flex-col items-center justify-center py-16 px-4 text-center animate-fade-in">
       <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100 shadow-inner dark:bg-gray-800 dark:border-gray-700">
         <svg class="w-10 h-10 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -79,56 +84,61 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 useHead({ title: 'Growth Timeline | Smart Plant Box' })
 
+const SUPABASE_URL = 'https://jojvabjckmruvmrhrrzd.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvanZhYmpja21ydXZtcmhycnpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDM1MjQsImV4cCI6MjA4ODAxOTUyNH0.8XHYvfy3qfzgcf95gmeCTxLEcaQZcmzMI_4qMiRD87M'
+
 const today = new Date().toISOString().split('T')[0]
 const selectedDate = ref(today)
+const loading = ref(false)
+const currentTimeline = ref([])
 
 const formattedDate = computed(() => {
   const dateObj = new Date(selectedDate.value)
   return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 })
 
-// ลิงก์รูปภาพจำลอง
-const mockImg = 'https://picsum.photos/seed/plant/800/400'
+const fetchPhotos = async (date) => {
+  loading.value = true
+  currentTimeline.value = []
+  try {
+    // Fetch ALL photos then filter by local date — avoids UTC timezone mismatch
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/image?select=id,image_url,created_at&order=created_at.asc`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    )
+    const data = await res.json()
+    console.log('All photos from Supabase:', data)
 
-// ข้อมูลจำลอง 
-const timelineData = ref({
-  [today]: [
-    { 
-      id: 1, 
-      timeDisplay: '07:00 AM', 
-      image: mockImg,
-      sensors: { soil: 60, humid: 45, temp: 24.5 }
-    },
-    { 
-      id: 2, 
-      timeDisplay: '12:00 PM', 
-      image: mockImg,
-      sensors: { soil: 55, humid: 42, temp: 28.2 }
-    },
-    { 
-      id: 3, 
-      timeDisplay: '05:00 PM', 
-      image: mockImg,
-      sensors: { soil: 65, humid: 50, temp: 26.0 }
-    }
-  ],
-  '2026-02-14': [
-    { 
-      id: 4, 
-      timeDisplay: '08:00 AM', 
-      image: mockImg,
-      sensors: { soil: 62, humid: 48, temp: 25.1 }
-    }
-  ]
-})
+    currentTimeline.value = (data || [])
+      .filter(row => {
+        // toLocaleDateString('en-CA') returns YYYY-MM-DD in local timezone
+        const rowDate = new Date(row.created_at).toLocaleDateString('en-CA')
+        return rowDate === date
+      })
+      .map(row => {
+        const d = new Date(row.created_at)
+        return {
+          id: row.id,
+          image_url: row.image_url,
+          timeDisplay: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+          soil: row.soil ?? null,
+          humid: row.humid ?? null,
+          temp: row.temp ?? null,
+        }
+      })
+  } catch (e) {
+    console.error('Failed to fetch timeline:', e)
+  } finally {
+    loading.value = false
+  }
+}
 
-const currentTimeline = computed(() => {
-  return timelineData.value[selectedDate.value] || []
-})
+onMounted(() => fetchPhotos(selectedDate.value))
+watch(selectedDate, (date) => fetchPhotos(date))
 </script>
 
 <style scoped>
@@ -139,7 +149,6 @@ const currentTimeline = computed(() => {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* ปรับสี Icon ปฏิทินเมื่อเป็น Dark Mode */
 :global(.dark) ::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
