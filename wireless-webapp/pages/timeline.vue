@@ -42,13 +42,29 @@
             <span class="text-sm md:text-base font-semibold text-gray-800 dark:text-white">{{ item.timeDisplay }}</span>
           </div>
           
-          <div class="rounded-xl overflow-hidden bg-gray-100 aspect-video md:aspect-[21/9] relative group dark:bg-gray-900">
+          <div class="rounded-xl overflow-hidden bg-gray-100 aspect-video md:aspect-[21/9] relative group dark:bg-gray-900 mb-4">
             <img :src="item.image" :alt="item.timeDisplay" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100">
           </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-0.5 sm:gap-2 bg-gray-50 border border-gray-100 p-2 md:px-3 md:py-2 rounded-xl dark:bg-gray-900 dark:border-gray-700">
+              <span class="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider dark:text-gray-500">Soil</span>
+              <span class="text-xs md:text-sm font-extrabold text-emerald-500 dark:text-emerald-400">{{ item.sensors.soil }}%</span>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-0.5 sm:gap-2 bg-gray-50 border border-gray-100 p-2 md:px-3 md:py-2 rounded-xl dark:bg-gray-900 dark:border-gray-700">
+              <span class="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider dark:text-gray-500">Humid</span>
+              <span class="text-xs md:text-sm font-extrabold text-blue-500 dark:text-blue-400">{{ item.sensors.humid }}%</span>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-0.5 sm:gap-2 bg-gray-50 border border-gray-100 p-2 md:px-3 md:py-2 rounded-xl dark:bg-gray-900 dark:border-gray-700">
+              <span class="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider dark:text-gray-500">Temp</span>
+              <span class="text-xs md:text-sm font-extrabold text-amber-500 dark:text-amber-400">{{ item.sensors.temp }}°C</span>
+            </div>
+          </div>
+
         </div>
-
       </div>
-
     </div>
 
     <div v-else class="flex flex-col items-center justify-center py-16 px-4 text-center animate-fade-in">
@@ -78,15 +94,35 @@ const formattedDate = computed(() => {
 // ลิงก์รูปภาพจำลอง
 const mockImg = 'https://picsum.photos/seed/plant/800/400'
 
-// ข้อมูลจำลอง
+// ข้อมูลจำลอง 
 const timelineData = ref({
   [today]: [
-    { id: 1, timeDisplay: '07:00 AM', image: mockImg },
-    { id: 2, timeDisplay: '12:00 PM', image: mockImg },
-    { id: 3, timeDisplay: '05:00 PM', image: mockImg }
+    { 
+      id: 1, 
+      timeDisplay: '07:00 AM', 
+      image: mockImg,
+      sensors: { soil: 60, humid: 45, temp: 24.5 }
+    },
+    { 
+      id: 2, 
+      timeDisplay: '12:00 PM', 
+      image: mockImg,
+      sensors: { soil: 55, humid: 42, temp: 28.2 }
+    },
+    { 
+      id: 3, 
+      timeDisplay: '05:00 PM', 
+      image: mockImg,
+      sensors: { soil: 65, humid: 50, temp: 26.0 }
+    }
   ],
   '2026-02-14': [
-    { id: 4, timeDisplay: '08:00 AM', image: mockImg }
+    { 
+      id: 4, 
+      timeDisplay: '08:00 AM', 
+      image: mockImg,
+      sensors: { soil: 62, humid: 48, temp: 25.1 }
+    }
   ]
 })
 

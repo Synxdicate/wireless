@@ -12,7 +12,7 @@
          </button>
          <div class="flex items-center gap-2 transition-all duration-300" :class="isSidebarOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none w-0'">
            <img src="/favicon.png" class="w-8 h-8 object-contain shrink-0" />
-           <span class="text-xl font-bold text-emerald-600 dark:text-emerald-400">Smart Plant</span>
+           <span class="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-400">Smart Plant</span>
          </div>
       </div>
 
