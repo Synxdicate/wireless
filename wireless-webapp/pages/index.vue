@@ -156,7 +156,7 @@ const SUPABASE_URL = 'https://jojvabjckmruvmrhrrzd.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvanZhYmpja21ydXZtcmhycnpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDM1MjQsImV4cCI6MjA4ODAxOTUyNH0.8XHYvfy3qfzgcf95gmeCTxLEcaQZcmzMI_4qMiRD87M'
 
 const latestPhotoUrl = ref('')
-const lastPhotoTime = ref('--:--')
+const lastPhotoTime = ref('--/--/---- --:--')
 const loadingPhoto = ref(true)
 const takingPhoto = ref(false)
 let pollInterval = null
@@ -172,7 +172,14 @@ const fetchLatestPhoto = async () => {
     if (data && data.length > 0) {
       latestPhotoUrl.value = data[0].image_url
       const d = new Date(data[0].created_at)
-      lastPhotoTime.value = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      
+      // 🟢 จัดฟอร์แมตให้เป็น วัน/เดือน/ปี เวลา (เช่น 03/05/2026 19:09)
+      const day = String(d.getDate()).padStart(2, '0')
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const year = d.getFullYear()
+      const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      
+      lastPhotoTime.value = `${day}/${month}/${year} ${time}`
     }
   } catch (e) {
     console.error('Failed to fetch photo:', e)
