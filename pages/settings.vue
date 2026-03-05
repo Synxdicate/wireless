@@ -34,7 +34,6 @@
               </div>
               <span class="text-sm font-bold text-gray-700 dark:text-gray-200">1 time / day</span>
             </div>
-            
             <div class="ml-8 sm:ml-0 flex sm:justify-end">
               <input 
                 type="time" 
@@ -53,7 +52,6 @@
               </div>
               <span class="text-sm font-bold text-gray-700 dark:text-gray-200">2 times / day</span>
             </div>
-            
             <div class="ml-8 sm:ml-0 flex items-center justify-between sm:justify-end gap-2 overflow-hidden">
               <input 
                 type="time" 
@@ -106,75 +104,80 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-// 🟢 Import Firebase เพื่อเชื่อมต่อฐานข้อมูล
 import { ref as dbRef, get, update } from 'firebase/database' 
 import { db } from '~/utils/firebase'
 
 useHead({ title: 'Settings | Smart Plant Box' })
 
 const wateringSchedule = ref('manual')       
-const photoFrequency = ref('morning') 
+const photoFrequency   = ref('morning') 
+const time1            = ref('07:00') 
+const time2            = ref('17:00') 
 
-const time1 = ref('07:00') 
-const time2 = ref('17:00') 
-
-const isSaving = ref(false)
+const isSaving  = ref(false)
 const showToast = ref(false)
-let toastTimeout = null
-// ตัวแปรสำหรับเช็คว่ากำลังโหลดข้อมูลครั้งแรกอยู่ จะได้ไม่เผลอเซฟทับ
-let isInitialLoad = true 
+let toastTimeout   = null
+let isInitialLoad  = true
 
 const photoOptions = [
-  { label: 'Manual Only', value: 'manual', desc: 'Take photos manually via Dashboard' },
-  { label: 'Morning', value: 'morning', desc: '1 photo per day (07:00 AM)' }, 
-  { label: 'Morning & Evening', value: 'morning_evening', desc: '2 photos per day (07:00 AM & 12:00 PM)' }, 
-  { label: 'Morning, Noon & Evening', value: 'morning_noon_evening', desc: '3 photos per day (07:00 AM & 12:00 PM & 5:00 PM)' }
+  { label: 'Manual Only',              value: 'manual',               desc: 'Take photos manually via Dashboard' },
+  { label: 'Morning',                  value: 'morning',              desc: '1 photo per day (07:00 AM)' }, 
+  { label: 'Morning & Evening',        value: 'morning_evening',      desc: '2 photos per day (07:00 AM & 12:00 PM)' }, 
+  { label: 'Morning, Noon & Evening',  value: 'morning_noon_evening', desc: '3 photos per day (07:00 AM & 12:00 PM & 5:00 PM)' }
 ]
 
-// 🟢 ดึงข้อมูลจาก Firebase ตอนเปิดหน้าเว็บ
+// =====================================================
+// LOAD SETTINGS
+// =====================================================
 onMounted(async () => {
   try {
-    const settingsNode = dbRef(db, 'test/settings')
-    const snapshot = await get(settingsNode)
-    
+    const snapshot = await get(dbRef(db, 'test/settings'))
     if (snapshot.exists()) {
       const data = snapshot.val()
       if (data.wateringSchedule) wateringSchedule.value = data.wateringSchedule
-      if (data.photoFrequency) photoFrequency.value = data.photoFrequency
-      if (data.time1) time1.value = data.time1
-      if (data.time2) time2.value = data.time2
+      if (data.photoFrequency)   photoFrequency.value   = data.photoFrequency
+      if (data.time1)            time1.value            = data.time1
+      if (data.time2)            time2.value            = data.time2
     }
   } catch (error) {
     console.error('Error loading settings:', error)
   } finally {
-    // โหลดเสร็จแล้ว อนุญาตให้ระบบ Auto-save ทำงานได้
     setTimeout(() => { isInitialLoad = false }, 500)
   }
 })
 
-// 🟢 ฟังก์ชันส่งข้อมูลไปเซฟที่ Firebase
+// =====================================================
+// AUTO SAVE
+// =====================================================
 const autoSave = async () => {
-  if (isInitialLoad) return // ข้ามการเซฟถ้าเพิ่งเปิดหน้าเว็บ
-  
-  isSaving.value = true
+  if (isInitialLoad) return
+
+  isSaving.value  = true
   showToast.value = true
   clearTimeout(toastTimeout)
-  
+
   try {
-    const settingsNode = dbRef(db, 'test/settings')
-    // อัปเดตข้อมูลขึ้น Database ที่โฟลเดอร์ test/settings
-    await update(settingsNode, {
+    // เซฟ UI settings
+    await update(dbRef(db, 'test/settings'), {
       wateringSchedule: wateringSchedule.value,
-      photoFrequency: photoFrequency.value,
-      time1: time1.value,
-      time2: time2.value
+      photoFrequency:   photoFrequency.value,
+      time1:            time1.value,
+      time2:            time2.value
     })
+
+    // ✅ sync ไปที่ path ที่ ESP32 อ่าน
+    await update(dbRef(db, 'test/schedule'), {
+      mode:  wateringSchedule.value,  // "manual", "1", "2"
+      time1: time1.value,             // "07:00"
+      time2: time2.value              // "17:00"
+    })
+
   } catch (error) {
     console.error('Error saving settings:', error)
   }
-  
+
   isSaving.value = false
-  toastTimeout = setTimeout(() => { showToast.value = false }, 2000)
+  toastTimeout   = setTimeout(() => { showToast.value = false }, 2000)
 }
 
 watch([wateringSchedule, photoFrequency, time1, time2], autoSave)
@@ -186,9 +189,8 @@ watch([wateringSchedule, photoFrequency, time1, time2], autoSave)
 }
 @keyframes fadeIn { 
   from { opacity: 0; transform: translateY(-10px); } 
-  to { opacity: 1; transform: translateY(0); } 
+  to   { opacity: 1; transform: translateY(0); } 
 }
-
 input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;

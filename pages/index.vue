@@ -106,14 +106,34 @@
           </div>
         </div>
 
+        <!-- Pump Status Banner -->
+        <Transition name="slide-down">
+          <div v-if="pumpStatus" class="bg-cyan-50 border border-cyan-200 rounded-2xl px-5 py-3 flex items-center gap-3 dark:bg-cyan-500/10 dark:border-cyan-500/30">
+            <div class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse shrink-0"></div>
+            <p class="text-sm font-bold text-cyan-700 dark:text-cyan-400">Pump is running...</p>
+            <span class="ml-auto text-xs text-cyan-500 font-medium">Auto-stops in 1s</span>
+          </div>
+        </Transition>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button @click="triggerWater" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-5 px-8 rounded-2xl shadow-lg shadow-cyan-500/20 transition-all active:scale-95 text-lg flex items-center justify-center gap-3 dark:bg-cyan-600 dark:hover:bg-cyan-500">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+          <!-- Water Button -->
+          <button 
+            @click="triggerWater"
+            :disabled="pumpStatus"
+            :class="pumpStatus 
+              ? 'bg-gray-400 cursor-not-allowed shadow-gray-400/20' 
+              : 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/20 dark:bg-cyan-600 dark:hover:bg-cyan-500'"
+            class="text-white font-bold py-5 px-8 rounded-2xl shadow-lg transition-all active:scale-95 text-lg flex items-center justify-center gap-3"
+          >
+            <span v-if="pumpStatus" class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2.25c-3.159 3.96-6 7.641-6 10.95 0 3.314 2.686 6 6 6s6-2.686 6-6c0-3.309-2.841-6.99-6-10.95z" />
             </svg>
-            Water Now
+            {{ pumpStatus ? 'Watering...' : 'Water Now' }}
           </button>
 
+          <!-- Take Photo Button -->
           <button @click="triggerPhoto" :disabled="takingPhoto" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-lg flex items-center justify-center gap-3 dark:bg-emerald-600 dark:hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed">
             <svg v-if="!takingPhoto" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
@@ -142,24 +162,36 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { ref as dbRef, onValue, set } from 'firebase/database' 
+import { ref as dbRef, onValue, set } from 'firebase/database'
 import { db } from '~/utils/firebase'
 
 const { isDark, toggleTheme } = useTheme()
 const isZoomed = ref(false)
 
-const plantName = ref('Pepper Plant (Box #1)')
-const isEditingName = ref(false)
-const nameInput = ref(null)
+const plantName      = ref('Pepper Plant (Box #1)')
+const isEditingName  = ref(false)
+const nameInput      = ref(null)
 
 const SUPABASE_URL = 'https://jojvabjckmruvmrhrrzd.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvanZhYmpja21ydXZtcmhycnpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDM1MjQsImV4cCI6MjA4ODAxOTUyNH0.8XHYvfy3qfzgcf95gmeCTxLEcaQZcmzMI_4qMiRD87M'
 
 const latestPhotoUrl = ref('')
-const lastPhotoTime = ref('--/--/---- --:--')
-const loadingPhoto = ref(true)
-const takingPhoto = ref(false)
-let pollInterval = null
+const lastPhotoTime  = ref('--/--/---- --:--')
+const loadingPhoto   = ref(true)
+const takingPhoto    = ref(false)
+const pumpStatus     = ref(false)
+let photoInterval    = null
+let pumpFallback     = null
+
+// =====================================================
+// RESET PUMP STATE — ทั้งเว็บและ Firebase
+// =====================================================
+const resetPumpState = () => {
+  pumpStatus.value = false
+  set(dbRef(db, 'test/pump_status'), false).catch(() => {})
+  set(dbRef(db, 'test/water'), 0).catch(() => {})
+  set(dbRef(db, 'test/stop'), 0).catch(() => {})
+}
 
 const fetchLatestPhoto = async () => {
   try {
@@ -168,17 +200,13 @@ const fetchLatestPhoto = async () => {
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     )
     const data = await res.json()
-    console.log('Latest photo from Supabase:', data)
     if (data && data.length > 0) {
       latestPhotoUrl.value = data[0].image_url
-      const d = new Date(data[0].created_at)
-      
-      // 🟢 จัดฟอร์แมตให้เป็น วัน/เดือน/ปี เวลา (เช่น 03/05/2026 19:09)
-      const day = String(d.getDate()).padStart(2, '0')
+      const d     = new Date(data[0].created_at)
+      const day   = String(d.getDate()).padStart(2, '0')
       const month = String(d.getMonth() + 1).padStart(2, '0')
-      const year = d.getFullYear()
-      const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-      
+      const year  = d.getFullYear()
+      const time  = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
       lastPhotoTime.value = `${day}/${month}/${year} ${time}`
     }
   } catch (e) {
@@ -196,19 +224,19 @@ const startEditingName = async () => {
 
 const savePlantName = () => {
   isEditingName.value = false
-  const nameNode = dbRef(db, 'test/plantName')
-  set(nameNode, plantName.value).catch(err => console.error("Save name failed:", err))
+  set(dbRef(db, 'test/plantName'), plantName.value)
+    .catch(err => console.error('Save name failed:', err))
 }
 
 const sensors = ref([
-  { id: 1, name: 'Soil', value: '0', unit: '%', color: '#10b981', percent: 0 },
-  { id: 2, name: 'Air Humid', value: '0', unit: '%', color: '#3b82f6', percent: 0 },
-  { id: 3, name: 'Temp', value: '0', unit: '°C', color: '#f59e0b', percent: 0 },
+  { id: 1, name: 'Soil',      value: '0', unit: '%',  color: '#10b981', percent: 0 },
+  { id: 2, name: 'Air Humid', value: '0', unit: '%',  color: '#3b82f6', percent: 0 },
+  { id: 3, name: 'Temp',      value: '0', unit: '°C', color: '#f59e0b', percent: 0 },
 ])
 
 const plantStatus = computed(() => {
   const humid = parseFloat(sensors.value[1].value) || 0
-  const temp = parseFloat(sensors.value[2].value) || 0
+  const temp  = parseFloat(sensors.value[2].value) || 0
 
   if (temp === 0 && humid === 0) {
     return {
@@ -238,34 +266,50 @@ const plantStatus = computed(() => {
 })
 
 onMounted(() => {
-  fetchLatestPhoto()
-  // Auto-refresh photo every 60 seconds
-  pollInterval = setInterval(fetchLatestPhoto, 60000)
+  // ✅ reset สถานะปั๊มทุกครั้งที่เปิดหน้า
+  resetPumpState()
 
-  const testNode = dbRef(db, 'test')
-  onValue(testNode, (snapshot) => {
+  fetchLatestPhoto()
+  photoInterval = setInterval(fetchLatestPhoto, 60000)
+
+  onValue(dbRef(db, 'test'), (snapshot) => {
     const data = snapshot.val()
-    if (data) {
-      if (data.hum !== undefined) { sensors.value[1].value = data.hum; sensors.value[1].percent = data.hum }
-      if (data.temp !== undefined) { sensors.value[2].value = data.temp; sensors.value[2].percent = (data.temp / 50) * 100 }
-      if (data.soil_moisture !== undefined) { sensors.value[0].value = data.soil_moisture; sensors.value[0].percent = data.soil_moisture }
-      if (data.plantName) plantName.value = data.plantName
+    if (!data) return
+
+    if (data.hum           !== undefined) { sensors.value[1].value = data.hum;           sensors.value[1].percent = data.hum }
+    if (data.temp          !== undefined) { sensors.value[2].value = data.temp;          sensors.value[2].percent = (data.temp / 50) * 100 }
+    if (data.soil_moisture !== undefined) { sensors.value[0].value = data.soil_moisture; sensors.value[0].percent = data.soil_moisture }
+    if (data.plantName     !== undefined)  plantName.value = data.plantName
+
+    // ✅ parse boolean ให้ถูกต้อง
+    if (data.pump_status !== undefined) {
+      pumpStatus.value = data.pump_status === true || data.pump_status === 'true'
     }
   })
 })
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval)
+  if (photoInterval) clearInterval(photoInterval)
+  if (pumpFallback)  clearTimeout(pumpFallback)
 })
 
+// ✅ เปิดปั๊ม + fallback 2 วินาที
 const triggerWater = () => {
-  console.log("Watering triggered!")
+  if (pumpStatus.value) return
+
+  set(dbRef(db, 'test/water'), 1)
+    .catch(err => console.error('Water trigger failed:', err))
+
+  // fallback: ถ้า 2 วินาทีแล้ว Firebase ไม่ตอบ reset เอง
+  clearTimeout(pumpFallback)
+  pumpFallback = setTimeout(() => {
+    resetPumpState()
+  }, 2000)
 }
 
 const triggerPhoto = async () => {
   takingPhoto.value = true
   const before = latestPhotoUrl.value
-  // Poll every 2s for up to 30s waiting for a new photo from ESP32
   for (let i = 0; i < 15; i++) {
     await new Promise(r => setTimeout(r, 2000))
     await fetchLatestPhoto()
@@ -278,4 +322,7 @@ const triggerPhoto = async () => {
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.3s ease; }
+.slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>
