@@ -307,6 +307,12 @@ const triggerWater = () => {
   }, 2000)
 }
 
+await fetch(`${SUPABASE_URL}/rest/v1/camera_control?id=eq.1`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=minimal' },
+  body: JSON.stringify({ capture_now: true })
+})
+
 const triggerPhoto = async () => {
   takingPhoto.value = true
   const before = latestPhotoUrl.value
