@@ -46,6 +46,12 @@
             <span class="text-[9px] font-medium text-gray-400 dark:text-gray-500 ml-1 border-l pl-2 border-gray-200 dark:border-gray-600">{{ lastPhotoTime }}</span>
           </div>
 
+          <!-- dot กระพริบตอนกำลัง polling -->
+          <div v-if="isWaitingPhoto" class="absolute top-4 left-4 flex items-center gap-1.5 bg-white/90 dark:bg-gray-900/90 backdrop-blur px-2.5 py-1.5 rounded-full border border-gray-100 dark:border-gray-700">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Waiting...</span>
+          </div>
+
           <button @click="isZoomed = true" :disabled="!latestPhotoUrl" class="absolute bottom-4 right-4 bg-white/80 backdrop-blur p-2 rounded-xl text-gray-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white active:scale-95 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800 disabled:hidden">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
           </button>
@@ -133,14 +139,29 @@
             {{ pumpStatus ? 'Watering...' : 'Water Now' }}
           </button>
 
-          <!-- Take Photo Button -->
-          <button @click="triggerPhoto" :disabled="takingPhoto" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 text-lg flex items-center justify-center gap-3 dark:bg-emerald-600 dark:hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed">
-            <svg v-if="!takingPhoto" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-            <span v-if="takingPhoto" class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            {{ takingPhoto ? 'Taking...' : 'Take Photo' }}
+          <!-- Take Photo / Stop Button — toggle -->
+          <button
+            @click="togglePhoto"
+            :class="isWaitingPhoto
+              ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20 dark:bg-rose-600 dark:hover:bg-rose-500'
+              : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20 dark:bg-emerald-600 dark:hover:bg-emerald-500'"
+            class="text-white font-bold py-5 px-8 rounded-2xl shadow-lg transition-all active:scale-95 text-lg flex items-center justify-center gap-3"
+          >
+            <!-- สถานะ: กำลัง waiting → แสดง Stop -->
+            <template v-if="isWaitingPhoto">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Stop
+            </template>
+            <!-- สถานะ: ปกติ → แสดง Take Photo -->
+            <template v-else>
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              Take Photo
+            </template>
           </button>
         </div>
 
@@ -178,14 +199,18 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const latestPhotoUrl = ref('')
 const lastPhotoTime  = ref('--/--/---- --:--')
 const loadingPhoto   = ref(true)
-const takingPhoto    = ref(false)
 const pumpStatus     = ref(false)
+
+// ── สถานะกล้อง ────────────────────────────────
+// isWaitingPhoto = กำลัง polling รอรูปใหม่จาก ESP32
+const isWaitingPhoto = ref(false)
 let photoInterval    = null
 let pumpFallback     = null
+let pollTimer        = null   // timer สำหรับ poll รูปใหม่
 
-// =====================================================
-// RESET PUMP STATE — ทั้งเว็บและ Firebase
-// =====================================================
+// ─────────────────────────────────────────────
+// RESET PUMP STATE
+// ─────────────────────────────────────────────
 const resetPumpState = () => {
   pumpStatus.value = false
   set(dbRef(db, 'test/pump_status'), false).catch(() => {})
@@ -193,6 +218,9 @@ const resetPumpState = () => {
   set(dbRef(db, 'test/stop'), 0).catch(() => {})
 }
 
+// ─────────────────────────────────────────────
+// FETCH LATEST PHOTO จาก Supabase
+// ─────────────────────────────────────────────
 const fetchLatestPhoto = async () => {
   try {
     const res = await fetch(
@@ -216,6 +244,60 @@ const fetchLatestPhoto = async () => {
   }
 }
 
+// ─────────────────────────────────────────────
+// TOGGLE PHOTO BUTTON
+// กดครั้งแรก: ส่ง capture_now → true + เริ่ม poll
+// กดอีกครั้ง (ปุ่มแดง): หยุด + reset flag
+// ─────────────────────────────────────────────
+const setCaptureNow = (value) =>
+  fetch(`${SUPABASE_URL}/rest/v1/camera_control?id=eq.1`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Prefer: 'return=minimal'
+    },
+    body: JSON.stringify({ capture_now: value })
+  }).catch(e => console.error('setCaptureNow error:', e))
+
+const startPhotoPolling = () => {
+  const before = latestPhotoUrl.value
+  let attempts = 0
+  const MAX_ATTEMPTS = 15  // 15 × 2s = 30 วินาที timeout
+
+  pollTimer = setInterval(async () => {
+    attempts++
+    await fetchLatestPhoto()
+
+    // รูปเปลี่ยนแล้ว หรือ timeout
+    if (latestPhotoUrl.value !== before || attempts >= MAX_ATTEMPTS) {
+      stopPhotoPolling()
+    }
+  }, 2000)
+}
+
+const stopPhotoPolling = () => {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  isWaitingPhoto.value = false
+}
+
+const togglePhoto = async () => {
+  if (isWaitingPhoto.value) {
+    // ── กดปุ่มแดง: หยุดและ reset flag ──
+    stopPhotoPolling()
+    await setCaptureNow(false)
+  } else {
+    // ── กดปุ่มเขียว: ส่ง signal + เริ่ม poll ──
+    isWaitingPhoto.value = true
+    await setCaptureNow(true)
+    startPhotoPolling()
+  }
+}
+
+// ─────────────────────────────────────────────
+// Name editing
+// ─────────────────────────────────────────────
 const startEditingName = async () => {
   isEditingName.value = true
   await nextTick()
@@ -228,6 +310,9 @@ const savePlantName = () => {
     .catch(err => console.error('Save name failed:', err))
 }
 
+// ─────────────────────────────────────────────
+// Sensors
+// ─────────────────────────────────────────────
 const sensors = ref([
   { id: 1, name: 'Soil',      value: '0', unit: '%',  color: '#10b981', percent: 0 },
   { id: 2, name: 'Air Humid', value: '0', unit: '%',  color: '#3b82f6', percent: 0 },
@@ -265,10 +350,11 @@ const plantStatus = computed(() => {
   }
 })
 
+// ─────────────────────────────────────────────
+// Lifecycle
+// ─────────────────────────────────────────────
 onMounted(() => {
-  // ✅ reset สถานะปั๊มทุกครั้งที่เปิดหน้า
   resetPumpState()
-
   fetchLatestPhoto()
   photoInterval = setInterval(fetchLatestPhoto, 60000)
 
@@ -281,7 +367,6 @@ onMounted(() => {
     if (data.soil_moisture !== undefined) { sensors.value[0].value = data.soil_moisture; sensors.value[0].percent = data.soil_moisture }
     if (data.plantName     !== undefined)  plantName.value = data.plantName
 
-    // ✅ parse boolean ให้ถูกต้อง
     if (data.pump_status !== undefined) {
       pumpStatus.value = data.pump_status === true || data.pump_status === 'true'
     }
@@ -291,37 +376,18 @@ onMounted(() => {
 onUnmounted(() => {
   if (photoInterval) clearInterval(photoInterval)
   if (pumpFallback)  clearTimeout(pumpFallback)
+  stopPhotoPolling()
 })
 
-// ✅ เปิดปั๊ม + fallback 2 วินาที
+// ─────────────────────────────────────────────
+// Water
+// ─────────────────────────────────────────────
 const triggerWater = () => {
   if (pumpStatus.value) return
-
   set(dbRef(db, 'test/water'), 1)
     .catch(err => console.error('Water trigger failed:', err))
-
-  // fallback: ถ้า 2 วินาทีแล้ว Firebase ไม่ตอบ reset เอง
   clearTimeout(pumpFallback)
-  pumpFallback = setTimeout(() => {
-    resetPumpState()
-  }, 2000)
-}
-
-await fetch(`${SUPABASE_URL}/rest/v1/camera_control?id=eq.1`, {
-  method: 'PATCH',
-  headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=minimal' },
-  body: JSON.stringify({ capture_now: true })
-})
-
-const triggerPhoto = async () => {
-  takingPhoto.value = true
-  const before = latestPhotoUrl.value
-  for (let i = 0; i < 15; i++) {
-    await new Promise(r => setTimeout(r, 2000))
-    await fetchLatestPhoto()
-    if (latestPhotoUrl.value !== before) break
-  }
-  takingPhoto.value = false
+  pumpFallback = setTimeout(() => { resetPumpState() }, 2000)
 }
 </script>
 
